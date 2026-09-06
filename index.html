@@ -765,7 +765,7 @@
     display: flex;
     align-items: center;
     gap: 24px;
-    margin-bottom: 28px;
+    margin-bottom: 20px;
   }
 
   .avatar-preview-wrap {
@@ -988,7 +988,7 @@
     padding: 12px 16px;
     font-size: 13px;
     color: #c8a800;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     display: flex;
     gap: 10px;
     align-items: flex-start;
@@ -1401,12 +1401,16 @@
     border-radius: 8px;
     border: 1px solid transparent;
     background: transparent;
-    color: var(--muted);
+    /* TT-217 (06-09-2026): standaard al accentkleur, niet pas bij :hover —
+       zelfde reden als .niveau-info-btn/.modal-close: geen hover op een
+       telefoon, dus de stippen vielen altijd weg tegen de achtergrond. Geldt
+       voor alle vier de gebruiksplekken (hamburger, zoekvoorkeuren-meer,
+       profiel-meer, band-meer) — één klasse, één keer gerepareerd. */
+    color: var(--accent);
     cursor: pointer;
     transition: all 0.2s;
   }
   .nav-menu-btn:hover, .nav-menu-btn.active {
-    color: var(--accent);
     border-color: var(--border);
     background: var(--surface);
   }
@@ -2004,14 +2008,18 @@
     position: absolute;
     top: 16px; right: 16px;
     background: var(--surface2);
-    border: 1px solid var(--border);
+    /* TT-217 (06-09-2026): border en kruis standaard al accentkleur, niet pas
+       bij :hover — zelfde reden als .niveau-info-btn (§6 huisstijl): op een
+       telefoon bestaat geen hover, dus viel de knop altijd weg tegen de
+       donkere achtergrond. */
+    border: 1px solid var(--accent);
     border-radius: 50%;
     /* TT-U23 (12-08-2026): was 32x32 pixels. */
     width: 44px; height: 44px;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
     font-size: 18px;
-    color: var(--muted);
+    color: var(--accent);
     transition: all 0.15s;
   }
 
@@ -2024,13 +2032,15 @@
     position: absolute;
     top: 16px; left: 16px;
     background: var(--surface2);
-    border: 1px solid var(--border);
+    /* TT-217 (06-09-2026): zelfde accent-fix als .modal-close, om spiegelbeeld
+       te blijven — zie toelichting daar. */
+    border: 1px solid var(--accent);
     border-radius: 50%;
     width: 44px; height: 44px;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
     font-size: 18px;
-    color: var(--muted);
+    color: var(--accent);
     transition: all 0.15s;
   }
   /* :hover verplaatst naar de touch-guard verderop (TT-182). */
@@ -2534,8 +2544,8 @@
      regel bij .drop-zone hierboven. */
   @media (hover: hover) {
     .tag:hover { border-color: var(--accent); color: var(--accent); }
-    .modal-close:hover { color: var(--text); border-color: #555; }
-    .modal-back:hover { color: var(--text); border-color: #555; }
+    .modal-close:hover { background: rgba(245,197,24,0.15); }
+    .modal-back:hover { background: rgba(245,197,24,0.15); }
     .level-choice:hover { border-color: var(--accent); }
     .niveau-info-btn:hover { background: rgba(245,197,24,0.15); }
     .picker-field:hover { border-color: var(--accent); }
@@ -2996,7 +3006,7 @@
     <div class="hero-band"></div>
     <div class="panel-title">Je mediahoek</div>
 
-    <div class="field" style="margin-bottom:28px;">
+    <div class="field">
       <label>Profielfoto</label>
       <div class="avatar-upload-area">
         <div class="avatar-preview-wrap">
@@ -3319,7 +3329,7 @@
     <div class="hero-band"></div>
     <div class="panel-title" style="margin-bottom:20px;">Je mediahoek</div>
 
-    <div class="field" style="margin-bottom:28px;">
+    <div class="field">
       <label>Profielfoto</label>
       <div class="avatar-upload-area">
         <div class="avatar-preview-wrap">
@@ -4402,7 +4412,7 @@
 
     <div class="modal-sticky-footer" id="instrumentLevelFooter" style="display:none;">
       <div style="display:flex;gap:12px;">
-        <button type="button" class="btn btn-ghost" style="flex:1;min-width:0;color:var(--danger);" onclick="removeInstrumentFromSheet()">Terug</button>
+        <button type="button" class="btn btn-ghost" style="flex:1;min-width:0;" onclick="removeInstrumentFromSheet()">Terug</button>
         <button type="button" class="btn btn-ghost" style="flex:1;min-width:0;" onclick="openMusicianNiveauInfoModal()">Uitgebreide toelichting niveaus</button>
       </div>
     </div>
@@ -5955,8 +5965,11 @@ function buildMusicianDetailHTML(m, isOwn, inModal) {
   // regelt displayNameOf() op basis van wat de database heeft meegegeven.
   const displayName = isOwn ? m.fname : displayNameOf(m);
   const avatarSrc = safeUrl(m.avatar_url);
+  // TT-217 (06-09-2026): klik op de profielfoto vergroot 'm, zelfde bestaande
+  // lightbox als bij de foto's onder "Foto's" (openMediaLightbox()) — geen
+  // nieuwe component, hergebruik van het bestaande patroon.
   const avatarHTML = avatarSrc
-    ? `<img class="profile-avatar-photo" src="${avatarSrc}" alt="${escHtml(displayName)}" style="border-color:${col};margin-bottom:0;flex-shrink:0;">`
+    ? `<img class="profile-avatar-photo" src="${avatarSrc}" alt="${escHtml(displayName)}" style="border-color:${col};margin-bottom:0;flex-shrink:0;cursor:pointer;" onclick="openMediaLightbox('${jsAttr(avatarSrc)}')">`
     : `<div class="profile-avatar-initials" style="background:${col};border-color:${col};margin-bottom:0;flex-shrink:0;">${AVATAR_T_FALLBACK}</div>`;
 
   const songRows = [...m.musician_songs].sort((a, b) =>
@@ -6079,11 +6092,11 @@ function buildMusicianDetailHTML(m, isOwn, inModal) {
               ? `<img src="https://img.youtube.com/vi/${jsAttr(ytId)}/hqdefault.jpg" alt="${escAttr(label)}" style="width:100%;height:100%;object-fit:cover;display:block;">`
               : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--surface2);text-align:center;padding:4px;"><span style="font-size:12px;font-weight:700;color:var(--text);">${escHtml(label)}</span></div>`;
             const tileStyle = 'display:block;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid var(--border);padding:0;background:none;';
-            // TT-158 (27-08-2026): social-media-links alleen klikbaar voor een
-            // ingelogde gebruiker — zelfde regel als voorheen, nu op de tegel.
-            return currentUser
-              ? `<a href="${l.safeHref}" target="_blank" rel="noopener noreferrer" style="${tileStyle}">${inner}</a>`
-              : `<span style="${tileStyle}cursor:default;">${inner}</span>`;
+            // TT-158 (27-08-2026) trok hier een grens bij "ingelogd": alleen
+            // dan klikbaar. TT-218 (06-09-2026), op verzoek van Ronald: die
+            // grens losgelaten — een link opent nu onder alle omstandigheden,
+            // ook uitgelogd.
+            return `<a href="${l.safeHref}" target="_blank" rel="noopener noreferrer" style="${tileStyle}">${inner}</a>`;
           }).join('')}
         </div>
       </div>` : ''}`;
