@@ -6824,6 +6824,13 @@ async function executeAccountDeletion() {
     closeDeleteAccountModal();
     myMusicianId = null;
     myOwnCity = null;
+    // Voorkomt dat een volgende login op ditzelfde (mogelijk nog bestaande,
+    // zie stap 5 hierboven) auth-account een oude wizard-stand terugvindt via
+    // tryResumeOnboarding() — die matcht alleen op userId, niet op of er nog
+    // een profiel bestaat. Zonder dit sprong "opnieuw beginnen" soms naar de
+    // laatst bewaarde stap van het verwijderde profiel (gevonden 06-09-2026,
+    // Ronald: "kom ik meteen op de laatste stap: media toevoegen").
+    clearOnboardingProgress();
     try { await signOut(); } catch (e) { /* sessie kan al ongeldig zijn ná stap 5 hierboven */ }
 
     if (authResult.ok) {
