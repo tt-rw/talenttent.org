@@ -81,6 +81,18 @@
     color: var(--text);
     font-family: 'Roboto', sans-serif;
     min-height: 100vh;
+  }
+
+  /* TT-212-vervolg (06-09-2026): overflow-x:hidden stond eerst op body zelf.
+     Dat dwingt Android Chrome tot main-thread scrollen in plaats van de
+     snelle, geanimeerde compositor-route — een bekende, gedocumenteerde
+     oorzaak van schokkerig scrollen, overal op de pagina, ongeacht wat er
+     verder op het scherm staat. De vorige fix (will-change op body::before)
+     loste dat niet op: die laag was niet de oorzaak. #appRoot draagt nu de
+     overflow-x:hidden i.p.v. body — de clip-functie blijft hetzelfde
+     (niets scrollt nog horizontaal), maar body/html zelf blijven vrij, dus
+     de browser mag weer de snelle route gebruiken. */
+  #appRoot {
     overflow-x: hidden;
   }
 
@@ -92,7 +104,10 @@
      zodat er minder onnodig gescrold hoeft te worden. Op mobiel blijft
      het gedrag ongewijzigd (natuurlijk scrollen, geen geforceerde hoogte). */
   @media (min-width: 768px) {
-    body { display: flex; flex-direction: column; min-height: 100vh; }
+    /* TT-212-vervolg: #appRoot draagt deze flex-layout nu, niet meer body
+       zelf — zie de toelichting bij #appRoot hierboven. .app-topbar en
+       .app-view zijn kinderen van #appRoot, niet meer van body. */
+    #appRoot { display: flex; flex-direction: column; min-height: 100vh; }
     .app-topbar { flex-shrink: 0; }
     .app-view.active { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   }
@@ -2533,6 +2548,8 @@
 </head>
 <body>
 
+<div id="appRoot">
+
 <div class="app-topbar">
 <header>
   <div class="logo" onclick="showView('landing')" style="cursor:pointer;" title="Naar de homepagina"><span style="font-size:50%;color:var(--accent);">THE </span><span style="color:var(--text);">TALENT</span> TENT</div>
@@ -4432,6 +4449,8 @@
     document.getElementById('backendErrorOverlay').classList.add('visible');
   }
 </script>
+
+</div><!-- /#appRoot -->
 
 <script>
 // ─── Supabase ────────────────────────────────────────────────────────────────
@@ -6703,6 +6722,23 @@ function requestFinalDeleteConfirmation() {
   );
 }
 
+// TT-22-restpunt (06-09-2026): probeert het auth-account van de ingelogde
+// gebruiker te verwijderen via de Edge Function 'delete-own-account', met
+// twee herkansingen (drie pogingen totaal, 1s/2s pauze ertussen) bij een
+// mislukking. Geen enkele hoeveelheid pogingen kan een echte storing of het
+// ontbreken van internet oplossen — dit vangt alleen het meest voorkomende
+// geval op: een kortstondige hapering die bij een volgende poging al weg is.
+async function deleteOwnAuthAccountWithRetry(maxAttempts = 3) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const { error: fnErr } = await db.functions.invoke('delete-own-account');
+      if (!fnErr) return true;
+    } catch (e) { /* volgende poging, of hieronder als laatste poging faalt */ }
+    if (attempt < maxAttempts) await new Promise(r => setTimeout(r, 1000 * attempt));
+  }
+  return false;
+}
+
 async function executeAccountDeletion() {
   const mid = await getMyMusicianId();
   if (!mid) return;
@@ -6744,16 +6780,38 @@ async function executeAccountDeletion() {
     // gesprekspartner ziet voortaan "Verwijderde gebruiker" i.p.v. een lege
     // naam (Ronald, 09-08-2026: niet ook de geschiedenis van de ander wissen).
     const userId = currentUser ? currentUser.id : null;
+    if (userId) await deleteAllStorageForUser(userId);
+
+    // 5. Auth-account (login/wachtwoord) zelf verwijderen — TT-22-restpunt,
+    // gesloten 06-09-2026. Dit kan niet vanaf de client (vereist de service-
+    // role-sleutel), dus roept de Edge Function 'delete-own-account' aan.
+    // Die functie controleert zelf, via de meegestuurde sessie, wélke
+    // gebruiker de aanroeper is — hier wordt geen id meegestuurd dat de
+    // functie zou moeten vertrouwen. Moet vóór signOut() gebeuren: de
+    // functie heeft de huidige, nog geldige sessie nodig.
+    //
+    // Ronald (06-09-2026): "zorg dat het in een keer lukt." Drie pogingen
+    // i.p.v. één, met een korte pauze ertussen — vangt een kortstondige
+    // netwerk-/serverhapering op, wat de meest voorkomende reden voor een
+    // eenmalige mislukking is. Dit is geen garantie (een echte storing bij
+    // Supabase of geen internetverbinding laat ook drie pogingen mislukken),
+    // maar wel de maximale betrouwbaarheid die vanaf de client haalbaar is.
+    const authAccountDeleted = await deleteOwnAuthAccountWithRetry();
 
     pendingSoloBandIds = [];
     closeDeleteAccountModal();
     myMusicianId = null;
     myOwnCity = null;
-    if (userId) await deleteAllStorageForUser(userId);
-    await signOut();
-    // Het auth-account zelf (login/wachtwoord) blijft nog bestaan — dat kan
-    // niet vanaf de client, zie het TT-22-restpunt in actielijst.md.
-    showToast('Je account is verwijderd.');
+    try { await signOut(); } catch (e) { /* sessie kan al ongeldig zijn ná stap 5 hierboven */ }
+
+    if (authAccountDeleted) {
+      showToast('Je account is verwijderd.');
+    } else {
+      // Profiel is al onomkeerbaar weg (stap 1-4 zijn al uitgevoerd) — dit
+      // niet verbergen achter de gewone succesmelding, maar ook niet de hele
+      // afronding blokkeren voor iets dat al niet meer terug te draaien is.
+      showToast('Je profiel is verwijderd. Je inloggegevens konden niet automatisch verwijderd worden — mail privacy@talenttent.org als je dit ook wilt laten verwijderen.');
+    }
     showView('landing');
   } catch (e) {
     // De modal is op dit punt al dicht (zie requestFinalDeleteConfirmation);
