@@ -6722,21 +6722,43 @@ function requestFinalDeleteConfirmation() {
   );
 }
 
+// Haalt de werkelijke foutboodschap uit een db.functions.invoke()-fout. De
+// standaardfout van supabase-js ("Edge Function returned a non-2xx status
+// code") zegt niets over de échte oorzaak — die staat in de JSON die de
+// functie zelf teruggaf, bereikbaar via fnErr.context (het Response-object).
+async function extractFnErrorDetail(fnErr) {
+  if (!fnErr) return '';
+  try {
+    if (fnErr.context && typeof fnErr.context.json === 'function') {
+      const body = await fnErr.context.clone().json();
+      if (body && body.error) return body.error;
+    }
+  } catch (e) { /* niet te lezen, val terug op de generieke boodschap */ }
+  return fnErr.message || String(fnErr);
+}
+
 // TT-22-restpunt (06-09-2026): probeert het auth-account van de ingelogde
 // gebruiker te verwijderen via de Edge Function 'delete-own-account', met
 // twee herkansingen (drie pogingen totaal, 1s/2s pauze ertussen) bij een
 // mislukking. Geen enkele hoeveelheid pogingen kan een echte storing of het
 // ontbreken van internet oplossen — dit vangt alleen het meest voorkomende
 // geval op: een kortstondige hapering die bij een volgende poging al weg is.
+// Geeft naast ok/niet-ok ook de laatste technische foutdetail terug, zodat
+// een blijvende mislukking niet blind hoeft te worden opgelost (06-09-2026,
+// na meerdere niet-reproduceerbare mislukkingen zonder zichtbare oorzaak).
 async function deleteOwnAuthAccountWithRetry(maxAttempts = 3) {
+  let lastDetail = '';
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const { error: fnErr } = await db.functions.invoke('delete-own-account');
-      if (!fnErr) return true;
-    } catch (e) { /* volgende poging, of hieronder als laatste poging faalt */ }
+      if (!fnErr) return { ok: true, detail: '' };
+      lastDetail = await extractFnErrorDetail(fnErr);
+    } catch (e) {
+      lastDetail = (e && e.message) ? e.message : String(e);
+    }
     if (attempt < maxAttempts) await new Promise(r => setTimeout(r, 1000 * attempt));
   }
-  return false;
+  return { ok: false, detail: lastDetail };
 }
 
 async function executeAccountDeletion() {
@@ -6796,7 +6818,7 @@ async function executeAccountDeletion() {
     // eenmalige mislukking is. Dit is geen garantie (een echte storing bij
     // Supabase of geen internetverbinding laat ook drie pogingen mislukken),
     // maar wel de maximale betrouwbaarheid die vanaf de client haalbaar is.
-    const authAccountDeleted = await deleteOwnAuthAccountWithRetry();
+    const authResult = await deleteOwnAuthAccountWithRetry();
 
     pendingSoloBandIds = [];
     closeDeleteAccountModal();
@@ -6804,13 +6826,17 @@ async function executeAccountDeletion() {
     myOwnCity = null;
     try { await signOut(); } catch (e) { /* sessie kan al ongeldig zijn ná stap 5 hierboven */ }
 
-    if (authAccountDeleted) {
+    if (authResult.ok) {
       showToast('Je account is verwijderd.');
     } else {
       // Profiel is al onomkeerbaar weg (stap 1-4 zijn al uitgevoerd) — dit
       // niet verbergen achter de gewone succesmelding, maar ook niet de hele
       // afronding blokkeren voor iets dat al niet meer terug te draaien is.
-      showToast('Je profiel is verwijderd. Je inloggegevens konden niet automatisch verwijderd worden — mail privacy@talenttent.org als je dit ook wilt laten verwijderen.');
+      // TIJDELIJK (06-09-2026, debug): toont de technische foutdetail erbij
+      // en blijft langer staan (12s i.p.v. 3,5s) — nodig zolang de oorzaak
+      // van herhaalde mislukkingen nog niet gevonden is. Weghalen zodra
+      // TT-22 stabiel werkt (zie actielijst.md).
+      showToast('Je profiel is verwijderd. Inloggegevens niet verwijderd — technische melding: ' + authResult.detail + '. Mail privacy@talenttent.org als dit zo blijft.', 12000);
     }
     showView('landing');
   } catch (e) {
