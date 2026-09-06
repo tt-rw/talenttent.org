@@ -1819,15 +1819,6 @@
   }
   .result-card-msg-btn svg { color: #000; }
 
-  /* TT-U13 (12-08-2026): één regel bio op de kaart. */
-  .result-card-bio {
-    font-size: 12px;
-    color: var(--muted);
-    font-style: italic;
-    margin-top: 4px;
-    line-height: 1.4;
-  }
-
   /* TT-30: envelop-icoon op rijen zit nu in een klein afgerond knopvlak
      i.p.v. los aan het eind van de rij te zweven. */
   .result-row-msg-btn {
@@ -5896,10 +5887,6 @@ function musicianCardHTML(m) {
   const displayName = displayNameOf(m);
   const photoHTML = avatarSrc ? `<img src="${avatarSrc}" alt="${escHtml(displayName)}">` : AVATAR_T_FALLBACK;
   const nameHTML = escHtml(displayName);
-  // TT-U13 (12-08-2026): één regel uit de bio. Vóór deze wijziging was er
-  // geen enkel woord van de persoon zelf zichtbaar vóór de klik.
-  const bioRuw = (m.bio || '').replace(/\s+/g, ' ').trim();
-  const bioSnippet = bioRuw.length > 60 ? bioRuw.slice(0, 60).trimEnd() + '…' : bioRuw;
 
   return `
     <div class="result-card" onclick="openMusicianModal('${jsAttr(m.id)}')">
@@ -5909,7 +5896,6 @@ function musicianCardHTML(m) {
         <div class="result-card-msg-btn" onclick="openRowMessageIcon(event,'${jsAttr(m.id)}','${jsAttr(displayName)}')">${MESSAGE_ICON_SVG}</div>
       </div>
       <div class="result-card-meta">${escHtml(m.city || '')}${m.distance_km != null ? ` · ${m.distance_km.toFixed(1)} km` : ''}</div>
-      ${bioSnippet ? `<div class="result-card-bio">${escHtml(bioSnippet)}</div>` : ''}
       <div class="result-card-badges-line">${overflowBadgeHTML(instruments, col, 2)}</div>
       <div class="result-card-badges-line">${overflowBadgeHTML(genres, '#6ec8d8', 2)}</div>
     </div>`;
