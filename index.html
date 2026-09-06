@@ -6839,11 +6839,11 @@ async function executeAccountDeletion() {
       // Profiel is al onomkeerbaar weg (stap 1-4 zijn al uitgevoerd) — dit
       // niet verbergen achter de gewone succesmelding, maar ook niet de hele
       // afronding blokkeren voor iets dat al niet meer terug te draaien is.
-      // TIJDELIJK (06-09-2026, debug): toont de technische foutdetail erbij
-      // en blijft langer staan (12s i.p.v. 3,5s) — nodig zolang de oorzaak
-      // van herhaalde mislukkingen nog niet gevonden is. Weghalen zodra
-      // TT-22 stabiel werkt (zie actielijst.md).
-      showToast('Je profiel is verwijderd. Inloggegevens niet verwijderd — technische melding: ' + authResult.detail + '. Mail privacy@talenttent.org als dit zo blijft.', 12000);
+      // TIJDELIJK (06-09-2026, debug): een alert() i.p.v. showToast(), omdat
+      // de toast — ook op 12 seconden — herhaaldelijk te snel wegging om te
+      // lezen/overtypen. alert() blijft open tot een bewuste klik op OK.
+      // Weghalen zodra TT-22 stabiel werkt (zie actielijst.md).
+      alert('Je profiel is verwijderd. Inloggegevens niet verwijderd — technische melding: ' + authResult.detail + '. Mail privacy@talenttent.org als dit zo blijft.');
     }
     showView('landing');
   } catch (e) {
